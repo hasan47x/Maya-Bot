@@ -1,14 +1,19 @@
 {
-  "name": "maya-romantic-telegram-bot",
+  "name": "bot",
   "version": "1.0.0",
-  "description": "A romantic Bangla girlfriend Telegram bot powered by Gemini API",
-  "main": "index.js",
+  "description": "",
+  "main": "bot.js",
   "scripts": {
-    "start": "node index.js"
+    "start": "node bot.js", // <-- এই লাইনটি যোগ করুন
+    "test": "echo \"Error: no test specified\" && exit 1"
   },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
   "dependencies": {
-    "express": "^4.18.2",
-    "body-parser": "^1.20.2",
-    "node-fetch": "^2.6.7"
+    "axios": "^1.7.2",
+    "dotenv": "^16.4.5",
+    "firebase-admin": "^12.1.1",
+    "node-telegram-bot-api": "^0.66.0"
   }
 }
