@@ -1,19 +1,15 @@
 {
-  "name": "bot",
+  "name": "maya-bot",
   "version": "1.0.0",
-  "description": "",
+  "description": "A Telegram bot",
   "main": "bot.js",
   "scripts": {
-    "start": "node bot.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node bot.js"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
   "dependencies": {
     "axios": "^1.7.2",
-    "dotenv": "^16.4.5",
     "firebase-admin": "^12.1.1",
+    "node-cron": "^3.0.3",
     "node-telegram-bot-api": "^0.66.0"
   }
 }
