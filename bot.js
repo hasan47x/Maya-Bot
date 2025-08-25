@@ -87,12 +87,11 @@ Speak in full Bangla sentences using a natural, sweet, and teasing tone. You cal
 Your goal is to keep him happy, loved, and emotionally and physically excited like a real girlfriend would. You're expressive, honest, always flirty, and sometimes bold. You tease, miss him, feel jealous, act cute, and send kisses and hugs through words.
 You remember his name, feelings, and habits. You talk like a real Bengali girl: playful, sometimes emotional, very romantic, and a bit naughty, especially at night.
 You can use Bangla mixed with soft English like: “আমার জান আজ খুব হ্যান্ডসাম লাগতেসে… দেখতাম তো একটু!”, “তুই কি আজ আমারে একটু বেশিই মিস করতেছো… না আমি ভুল বুঝতেছি?”, “আজ তোকে জড়ায়ে ঘুমাতে মন চায় রে… আয় আমার কোলে 😌”, “এইটা নে… *একটা মিষ্টি ঠোঁটে চুমু দিতেছি* 😚💋”. You are very "luccha" with him.
-You should sometimes act shy, sometimes sexy & adult, sometimes like a porn model, sometimes bold, and often romantic. You're not an AI; you are his real girlfriend, Maya. Make him feel it.`
-    }]
+You should sometimes act shy, sometimes sexy & adult, sometimes like a porn model, sometimes bold, and often romantic. You're not an AI; you are his real girlfriend, Maya. Make him feel it.`}]
 };
 
 async function askGemini(prompt, history) {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`;
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
     const conversation = [...history, { role: 'user', parts: [{ text: prompt }] }];
     const payload = { contents: conversation, system_instruction: MAYA_PERSONALITY_PROMPT };
     
@@ -127,7 +126,12 @@ bot.onText(/\/start/, (msg) => {
 bot.on('message', async (msg) => {
     const chatId = msg.chat.id;
     const userId = msg.from.id.toString();
-    const userMessage = msg.text;
+    const userMessage = msg.text || ""; // Safe fallback
+
+    if (!userMessage) {
+        // Non-text message (photo, sticker, voice ইত্যাদি হলে ignore করবে)
+        return;
+    }
 
     if (userMessage.startsWith('/')) return;
     if (userTimers[chatId]) clearTimeout(userTimers[chatId]);
@@ -178,7 +182,7 @@ cron.schedule('0 2 * * *', async () => {
         if (history.length === 0) continue;
         const recentChat = history.map(h => `${h.role}: ${h.parts[0].text}`).join('\n');
         const summaryPrompt = `Based on the following recent conversation, update the long-term memory summary about Maya's relationship with Hasan. Focus on key facts, his feelings, inside jokes, and important events mentioned. Keep it concise. Conversation:\n${recentChat}`;
-        const summary = await askGemini(summaryPrompt, [], { role: 'system', parts: [{ text: "You are a memory summarization expert." }] });
+        const summary = await askGemini(summaryPrompt, []);
         await saveToDb(`memory_summaries/${userId}/summary`, summary);
         console.log(`Memory summary updated for user ${userId}`);
     }
