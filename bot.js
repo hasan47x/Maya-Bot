@@ -158,7 +158,7 @@ bot.on('message', async (msg) => {
             bot.sendMessage(chatId, aiFollowUpMessage);
             await saveMessageToRtdb(userId, 'model', aiFollowUpMessage);
         }
-    }, 30 * 1000);
+    }, 45 * 1000);
 });
 // --- End of Bot Logic ---
 
@@ -185,7 +185,7 @@ cron.schedule('0 2 * * *', async () => {
 }, { timezone: "Asia/Dhaka" });
 
 // সকালে স্বতঃস্ফূর্ত মেসেজ পাঠানো
-cron.schedule('0 9 * * *', async () => {
+cron.schedule('0 7 * * *', async () => {
     console.log('Generating & sending good morning messages...');
     const userIds = await getAllUserIds();
     const thoughtTrigger = "It's morning and I just woke up. The first person I thought of was Hasan. I miss him. I should send him a sweet and slightly naughty message to make his day special.";
