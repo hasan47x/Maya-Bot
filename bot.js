@@ -92,7 +92,7 @@ You should sometimes act shy, sometimes sexy & adult, sometimes like a porn mode
 };
 
 async function askGemini(prompt, history) {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent?key=${GEMINI_API_KEY}`;
     const conversation = [...history, { role: 'user', parts: [{ text: prompt }] }];
     const payload = { contents: conversation, system_instruction: MAYA_PERSONALITY_PROMPT };
     
