@@ -14,8 +14,8 @@ const serviceAccount = JSON.parse(firebaseCredsJsonStr);
 const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const FIREBASE_DATABASE_URL = process.env.FIREBASE_DATABASE_URL;
-const CF_WORKER_URL = process.env.CF_WORKER_URL;       // Cloudflare Worker URL
-const CF_API_KEY = process.env.CF_API_KEY;             // Cloudflare Worker API Key
+const CF_WORKER_URL = process.env.CF_WORKER_URL;
+const CF_API_KEY = process.env.CF_API_KEY;
 
 if (!TELEGRAM_TOKEN || !GEMINI_API_KEY || !FIREBASE_DATABASE_URL || !CF_WORKER_URL || !CF_API_KEY) {
     throw new Error("One or more required environment variables are missing.");
@@ -79,17 +79,13 @@ async function getHistoryFromRtdb(userId) {
 async function generateImage(prompt) {
     try {
         console.log("Generating image with prompt via Cloudflare:", prompt);
-        const response = await axios.post(
-            CF_WORKER_URL,
-            { prompt },
-            {
-                headers: {
-                    'Authorization': `Bearer ${CF_API_KEY}`,
-                    'Content-Type': 'application/json'
-                },
-                responseType: 'arraybuffer' // ছবিকে Buffer হিসেবে পাওয়ার জন্য
-            }
-        );
+        const response = await axios.post(CF_WORKER_URL, { prompt }, {
+            headers: {
+                'Authorization': `Bearer ${CF_API_KEY}`,
+                'Content-Type': 'application/json'
+            },
+            responseType: 'arraybuffer'
+        });
         return Buffer.from(response.data);
     } catch (error) {
         console.error("Image Generation Error (Cloudflare):", error.response ? error.response.data.toString() : error.message);
@@ -121,7 +117,14 @@ async function askGemini(prompt, history) {
     
     try {
         const response = await axios.post(url, payload);
-        const responseText = response.data.candidates[0].content.parts[0].text;
+        let responseText = response.data.candidates[0].content.parts[0].text;
+        
+        // JSON খুঁজে বের করার জন্য Regex
+        const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+            responseText = jsonMatch[0];
+        }
+        
         return JSON.parse(responseText);
     } catch (error) {
         if (error.response && error.response.status === 429) {
@@ -138,7 +141,7 @@ async function generateProactiveMessage(userId, thoughtTrigger) {
     const longTermMemory = await readFromDb(`memory_summaries/${userId}/summary`) || "No long-term memories yet.";
     const proactivePrompt = `(System note: This is a proactive message. You are thinking this yourself and texting Hasan first. Your long-term memory about your relationship is: "${longTermMemory}". Your immediate thought is: "${thoughtTrigger}")`;
     const aiResponse = await askGemini(proactivePrompt, history);
-    return aiResponse.textResponse; // proactive message-এ ছবি বা ভয়েসের প্রয়োজন নেই
+    return aiResponse.textResponse;
 }
 // --- End of Gemini AI Function ---
 
@@ -172,8 +175,10 @@ bot.on('message', async (msg) => {
 
     await sleep(Math.floor(Math.random() * 1500) + 500);
 
-    bot.sendMessage(chatId, textResponse);
-    await saveMessageToRtdb(userId, 'model', textResponse);
+    if (textResponse) {
+        bot.sendMessage(chatId, textResponse);
+        await saveMessageToRtdb(userId, 'model', textResponse);
+    }
     
     if (imagePrompt) {
         bot.sendChatAction(chatId, 'upload_photo');
@@ -213,8 +218,10 @@ cron.schedule('0 2 * * *', async () => {
         const recentChat = history.map(h => `${h.role}: ${h.parts[0].text}`).join('\n');
         const summaryPrompt = `Based on the following recent conversation, update the long-term memory summary about Maya's relationship with Hasan. Focus on key facts, his feelings, inside jokes, and important events mentioned. Keep it concise. Conversation:\n${recentChat}`;
         const summaryResponse = await askGemini(summaryPrompt, []);
-        await saveToDb(`memory_summaries/${userId}/summary`, summaryResponse.textResponse);
-        console.log(`Memory summary updated for user ${userId}`);
+        if (summaryResponse && summaryResponse.textResponse) {
+            await saveToDb(`memory_summaries/${userId}/summary`, summaryResponse.textResponse);
+            console.log(`Memory summary updated for user ${userId}`);
+        }
     }
 }, { timezone: "Asia/Dhaka" });
 
@@ -259,7 +266,7 @@ cron.schedule('*/30 * * * *', async () => {
 // --- End of Advanced Jobs ---
 
 // --- Startup Confirmation & Health Check Server ---
-console.log('Hyper-Advanced Maya bot with Cloudflare Images has been started...');
+console.log('Hyper-Optimized Maya bot V2 with Cloudflare Images has been started...');
 const PORT = process.env.PORT || 3000;
 const server = http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': 'text/plain' });
