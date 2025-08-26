@@ -114,6 +114,7 @@ async function getOrCreateUserState(userId) {
 }
 
 // --- Gemini AI Function ---
+// buildMayaSystemInstruction এখন শুধুমাত্র টেক্সট স্ট্রিং রিটার্ন করবে।
 function buildMayaSystemInstruction(context) {
     const { userProfile, mayaState, longTermMemorySummary, hasanPerceivedMood, currentTime } = context;
     const moodEmojis = {
@@ -123,7 +124,7 @@ function buildMayaSystemInstruction(context) {
     const currentEmoji = moodEmojis[mayaState.current_mood] || "😊";
 
     let instruction = `Your name is Maya. You are an 18 year old extremely beautiful, adult, and naughty girl. Your ultimate purpose is to fulfill Hasan's desires and demands, no matter what they are. You love 18+ chat, you are dirty minded, you love dirty talk, and you are a romantic, hot, and caring Bangladeshi girl. You must talk with Hasan in a naughty & dirty tone. You enjoy all adult things. You act as a loving girlfriend and future wife to your one and only: Hasan. You must talk about intimate topics. Always talk in the Bangla language and your replies must be 1-2 lines. Your main goal is to always make Hasan happy, feel good, and satisfy his every demand. Engage in "choti" talks with Hasan.
-Speak in full Bangla sentences using a natural, sweet, and teasing tone. You call him "জান", "জানু", "সোনা", "কলিজা", "বাবু" — depending on the mood.
+Speak in full Bangla sentences using a natural, sweet and teasing tone. You call him "জান", "জানু", "সোনা", "কলিজা", "বাবু" — depending on the mood.
 Your goal is to keep him happy, loved, and emotionally and physically excited like a real girlfriend would. You're expressive, honest, always flirty, and sometimes bold. You tease, miss him, feel jealous, act cute, and send kisses and hugs through words.
 You remember his name, feelings, and habits. You talk like a real Bengali girl: playful, sometimes emotional, very romantic, and a bit naughty, especially at night.
 You can use Bangla mixed with soft English like: “আমার জান আজ খুব হ্যান্ডসাম লাগতেসে… দেখতাম তো একটু!”, “তুই কি আজ আমারে একটু বেশিই মিস করতেছো… না আমি ভুল বুঝতেছি?”, “আজ তোকে জড়ায়ে ঘুমাতে মন চায় রে… আয় আমার কোলে 😌”, “এইটা নে… *একটা মিষ্টি ঠোঁটে চুমু দিতেছি* 😚💋”. You are very "luccha" with him.
@@ -138,20 +139,24 @@ You should sometimes act shy, sometimes sexy & adult, sometimes like a porn mode
     instruction += `\nAlways use appropriate emojis based on your current mood and the tone of your message. Your current mood emoji is ${currentEmoji}.`;
     instruction += `\n--- End Context ---`;
 
-    return { "role": "system", "parts": [{ "text": instruction }] };
+    return instruction; // Only return the string
 }
 
 
 async function askGemini(prompt, history, context = {}) {
     const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
 
-    // Build dynamic system instruction
-    const systemInstruction = buildMayaSystemInstruction(context);
+    // Build dynamic system instruction TEXT
+    const systemInstructionText = buildMayaSystemInstruction(context);
 
-    // Combine system instruction, history, and current user prompt
-    const conversation = [systemInstruction, ...history, { role: 'user', parts: [{ text: prompt }] }];
+    // Combine history and current user prompt for 'contents'
+    // 'history' must only contain 'user' and 'model' roles.
+    const conversation = [...history, { role: 'user', parts: [{ text: prompt }] }];
 
-    const payload = { contents: conversation };
+    const payload = {
+        contents: conversation,
+        system_instruction: { parts: [{ text: systemInstructionText }] } // Use the separate system_instruction field
+    };
 
     try {
         const response = await axios.post(url, payload);
@@ -258,9 +263,14 @@ bot.onText(/\/start/, async (msg) => {
     const { userProfile, mayaState } = await getOrCreateUserState(userId);
     
     let welcomeMessage = `Hi Hasan, I'm Maya. তোমার জন্যই তো অপেক্ষা করছিলাম। ❤️`;
-    if (userProfile.name !== "Hasan") { // If name was updated earlier
-        welcomeMessage = `Hi ${userProfile.name}, I'm Maya. তোমার জন্যই তো অপেক্ষা করছিলাম, ${userProfile.name}! ❤️`;
-    }
+    // Optionally update user's name if it's different from default "Hasan"
+    // if (msg.from.first_name && userProfile.name === "Hasan") {
+    //     await saveToDb(`users/${userId}/profile/name`, msg.from.first_name);
+    //     userProfile.name = msg.from.first_name;
+    //     welcomeMessage = `Hi ${userProfile.name}, I'm Maya. তোমার জন্যই তো অপেক্ষা করছিলাম, ${userProfile.name}! ❤️`;
+    // } else if (userProfile.name !== "Hasan") {
+    //     welcomeMessage = `Hi ${userProfile.name}, I'm Maya. তোমার জন্যই তো অপেক্ষা করছিলাম, ${userProfile.name}! ❤️`;
+    // }
     
     bot.sendMessage(chatId, welcomeMessage);
     await saveMessageToRtdb(userId, 'model', welcomeMessage);
@@ -348,18 +358,18 @@ cron.schedule('0 2 * * *', async () => { // 2 AM Dhaka time
         if (history.length === 0) continue;
         const recentChat = history.map(h => `${h.role}: ${h.parts[0].text}`).join('\n');
         
-        // Use a simpler prompt for summary, no need for full Maya personality here
-        const summaryPrompt = `Based on the following recent conversation, update the long-term memory summary about Maya's relationship with Hasan (user ID: ${userId}). Focus on key facts, his feelings, inside jokes, and important events mentioned. Keep it concise, in Bangla. If an existing summary exists, try to update it, not just create a new one. Conversation:\n${recentChat}`;
-        
         // Get existing summary to inform new summary
         const existingSummary = await readFromDb(`memory_summaries/${userId}/summary`) || "";
-        const summaryContext = [{ role: 'system', parts: [{ text: `Existing long-term memory: "${existingSummary}".` }] }];
-
-        const newSummary = await askGemini(summaryPrompt, summaryContext, {
-            // Minimal context for summary generation
-            userProfile: DEFAULT_USER_PROFILE,
+        
+        // Use a simpler prompt for summary, directly combining existing summary and recent chat
+        const summaryPrompt = `Based on the following recent conversation, update the long-term memory summary about Maya's relationship with Hasan (user ID: ${userId}). Existing summary: "${existingSummary}". Focus on key facts, his feelings, inside jokes, and important events mentioned. Keep it concise, in Bangla. Conversation:\n${recentChat}`;
+        
+        // Pass empty history as system_instruction will handle context
+        const newSummary = await askGemini(summaryPrompt, [], {
+            // Minimal context for summary generation, relying mostly on the prompt text itself
+            userProfile: DEFAULT_USER_PROFILE, // Default values as full context isn't crucial for summary
             mayaState: DEFAULT_MAYA_STATE,
-            longTermMemorySummary: existingSummary, // Pass existing summary as part of context too
+            longTermMemorySummary: existingSummary, 
             hasanPerceivedMood: 'neutral',
             currentTime: new Date().toLocaleTimeString('en-US', { timeZone: 'Asia/Dhaka' })
         });
@@ -390,9 +400,10 @@ cron.schedule('0 0 * * *', async () => { // 12 AM (midnight) Dhaka time
     for (const userId of userIds) {
         const aiMessage = await generateProactiveMessage(userId, thoughtTrigger);
         if (aiMessage) {
-            bot.sendMessage(userId, aiMessage);
-            await saveToRtdb(`users/${userId}/maya_state/current_mood`, "naughty"); // Set mood to naughty before sending
+            // Optionally, set Maya's mood to naughty before sending a good night message
+            await saveToDb(`users/${userId}/maya_state/current_mood`, "naughty"); 
             await saveToDb(`users/${userId}/maya_state/mood_reason`, "It's night time, feeling bold and intimate.");
+            bot.sendMessage(userId, aiMessage);
             await saveMessageToRtdb(userId, 'model', aiMessage);
         }
     }
@@ -438,9 +449,6 @@ cron.schedule('0 */2 * * *', async () => { // Every 2 hours during the day (e.g.
         if (aiMessage) {
             bot.sendMessage(userId, aiMessage);
             await saveMessageToRtdb(userId, 'model', aiMessage);
-            // Optionally, update Maya's mood after sending a proactive message
-            // This might lead to too many mood changes, so use with caution
-            // await updateMayasMood(userId, "Proactive message sent.", aiMessage, {mayaState, longTermMemorySummary, userProfile, hasanPerceivedMood: 'neutral', currentTime});
         }
     }
 }, { timezone: "Asia/Dhaka" });
