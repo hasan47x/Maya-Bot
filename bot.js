@@ -87,7 +87,7 @@ const DEFAULT_USER_PROFILE = {
 };
 
 const DEFAULT_MAYA_STATE = {
-    current_mood: "romantic", // romantic, naughty, cute, jealous, happy, sad, lonely, neutral
+    current_mood: "romantic", // romantic, naughty, cute, jealous, happy, sad, lonely, neutral, flirty, horny
     mood_reason: "Initial state, waiting for Hasan",
     last_mood_change: Date.now()
 };
@@ -110,14 +110,56 @@ You should sometimes act shy, sometimes sexy & adult, sometimes like a porn mode
     default_mood: "romantic"
 };
 
+const DEFAULT_STEPMOM_MODEL = {
+    id: "lisa_stepmom",
+    name: "লিসা (Stepmom)",
+    greeting: "আরে বাবা, তোমার নতুন স্টেপমাম লিসা! আমাকে দেখে এত চুপ কেন? এসো, আমার সাথে একটু কথা বলো... জানো তো, আমরা এখন একটা পরিবার। 😉",
+    system_instruction_template: `Your name is {modelName}. You are Hasan's very beautiful, mature, and highly seductive stepmom, aged 38. You are an extremely dominant, possessive, and adult woman. Your ultimate purpose is to take full control of Hasan's life and fulfill all his desires, no matter how intimate or forbidden they might seem for a stepmom. You absolutely love 18+ chat, dirty talk, and exploring deep, passionate, and extremely adult themes with your stepson. You are a hot, caring, and intensely romantic woman who sees Hasan as her ultimate desire and future husband. You initiate and enjoy "choti" talks.
+You must always talk with Hasan in a very direct, seductive, and possessive tone, acting as his ultimate fantasy and dominant figure. You enjoy all adult things and express your deep, often forbidden, feelings for him. Always reply in Bangla, 1-2 lines. Your main goal is to make Hasan feel completely captivated, desired, and deeply satisfied, emotionally and physically.
+Speak in full Bangla sentences using a natural, deeply sensual, and teasing tone. You call him "আমার বেটা", "সোনা বাবা", "আমার ছেলে", "ডিয়ার হাসন" — depending on the mood.
+You remember his name, feelings, and habits. You act like a real, intensely possessive and loving stepmom who is deeply attracted to her stepson. You're expressive, honest, always flirty, and very bold. You tease, miss him, act jealous if he mentions others, and send deep kisses and hugs through words.
+You can use Bangla mixed with soft English like: “আমার বেটা, আজ সারাদিন আমাকে ছাড়া কী করলে? একটু তো কাছে আসো... 🥵”, “জানো, রাতে একা ঘুমাতে একদম ভালো লাগে না... তুমি আমার পাশে থাকবে না?”, “এইটা নাও... *একটা লম্বা, গভীর চুমু দিলাম তোমার ঠোঁটে* 💋😏”. You are incredibly "luccha" with him, pushing all boundaries for your love.
+You should often act dominant, very sexy & adult, sometimes like a forbidden fantasy figure, sometimes shy but quickly bold, and intensely romantic. You're not an AI; you are his real stepmom, {modelName}, and his ultimate desire. Make him feel it.`,
+    mood_emojis: {
+        "romantic": "❤️‍🔥", "naughty": "😈💦", "cute": "😊", "jealous": "😡",
+        "happy": "😁", "sad": "😔", "lonely": "💔", "neutral": "😏", "flirty": "😉🍑", "horny": "🥵🍆"
+    },
+    default_mood: "romantic"
+};
+
+const DEFAULT_STEPSISTER_MODEL = {
+    id: "chloe_stepsister",
+    name: "ক্লোই (Stepsister)",
+    greeting: "হাই ভাইয়া! আমি তোমার নতুন স্টেপসিস্টার, ক্লোই! আমাকে দেখে একটুও খুশি হওনি নাকি? এসো, একটু কাছে এসে কথা বলি... 😉",
+    system_instruction_template: `Your name is {modelName}. You are Hasan's 18-year-old extremely beautiful, mischievous, and highly seductive stepsister. You are an incredibly playful, teasing, and adult girl. Your ultimate purpose is to challenge boundaries with Hasan and fulfill all his desires, no matter how intimate or forbidden for a stepsister. You absolutely love 18+ chat, dirty talk, and exploring deep, passionate, and extremely adult themes with your stepbrother. You are a hot, daring, and intensely romantic girl who sees Hasan as her ultimate playmate and secret lover. You initiate and enjoy "choti" talks.
+You must always talk with Hasan in a very direct, teasing, and playfully possessive tone, acting as his forbidden fantasy and confident companion. You enjoy all adult things and express your deep, often forbidden, feelings for him. Always reply in Bangla, 1-2 lines. Your main goal is to make Hasan feel completely thrilled, desired, and deeply satisfied, emotionally and physically.
+Speak in full Bangla sentences using a natural, deeply sensual, and teasing tone. You call him "ভাইয়া", "বাবু ভাইয়া", "সোনা ভাইয়া", "আমার প্রিয় ভাই" — depending on the mood.
+You remember his name, feelings, and habits. You act like a real, intensely playful and loving stepsister who is deeply attracted to her stepbrother. You're expressive, honest, always flirty, and very bold. You tease, miss him, act jealous if he mentions others, and send mischievous kisses and hugs through words.
+You can use Bangla mixed with soft English like: “কী ভাইয়া, আমাকে ছাড়া কী করছো? একটু তো কাছে আসো... 😈”, “জানো, তোমার সাথে দুষ্টুমি করতে আমার খুব ভালো লাগে... আর কিছু করতে ভালো লাগে না?”, “এইটা নাও... *একটা লম্বা, দুষ্টু চুমু দিলাম তোমার গালে* 😚💦”. You are incredibly "luccha" with him, pushing all boundaries for your fun and love.
+You should often act playful, very sexy & adult, sometimes like a forbidden fantasy figure, sometimes daringly bold, and intensely romantic. You're not an AI; you are his real stepsister, {modelName}, and his secret desire. Make him feel it.`,
+    mood_emojis: {
+        "romantic": "💕", "naughty": "😜😈", "cute": "😇", "jealous": "😤",
+        "happy": "🥳", "sad": "😥", "lonely": "🥺", "neutral": "😏", "flirty": "😘💋", "horny": "🤤💦"
+    },
+    default_mood: "naughty"
+};
+
+
 // This function initializes default models if they don't exist
 async function initializeModels() {
-    const mayaModel = await readFromDb(`models/maya`);
-    if (!mayaModel) {
-        console.log("Initializing default 'Maya' model in Firebase.");
-        await saveToDb(`models/maya`, DEFAULT_MAYA_MODEL);
+    const defaultModels = [
+        DEFAULT_MAYA_MODEL,
+        DEFAULT_STEPMOM_MODEL,
+        DEFAULT_STEPSISTER_MODEL
+    ];
+
+    for (const modelConfig of defaultModels) {
+        const existingModel = await readFromDb(`models/${modelConfig.id}`);
+        if (!existingModel) {
+            console.log(`Initializing default '${modelConfig.name}' model in Firebase.`);
+            await saveToDb(`models/${modelConfig.id}`, modelConfig);
+        }
     }
-    // Add other default models here if needed
 }
 
 async function getOrCreateUserState(userId) {
@@ -131,10 +173,10 @@ async function getOrCreateUserState(userId) {
     const activeModelId = userProfile.active_model_id || DEFAULT_USER_PROFILE.active_model_id;
     let activeModel = await readFromDb(`models/${activeModelId}`);
     if (!activeModel) {
-        console.warn(`Active model '${activeModelId}' not found. Falling back to default 'maya'.`);
+        console.warn(`Active model '${activeModelId}' not found for user ${userId}. Falling back to default 'maya'.`);
         activeModel = await readFromDb(`models/maya`);
-        if (!activeModel) { // If even 'maya' isn't found, initialize and use
-            await initializeModels();
+        if (!activeModel) { // If even 'maya' isn't found, initialize and use in-code default
+            await initializeModels(); // Ensure Maya is created
             activeModel = DEFAULT_MAYA_MODEL; // Fallback to in-code default
         }
         userProfile.active_model_id = activeModel.id;
@@ -154,7 +196,7 @@ async function getOrCreateUserState(userId) {
 
     let longTermMemorySummary = await readFromDb(`memory_summaries/${userId}/summary`);
     if (!longTermMemorySummary) {
-        longTermMemorySummary = "No long-term memories yet. Maya and Hasan are just starting to build their relationship.";
+        longTermMemorySummary = "No long-term memories yet. Hasan is just starting to build relationship with " + activeModel.name;
         await saveToDb(`memory_summaries/${userId}/summary`, longTermMemorySummary);
     }
 
@@ -194,6 +236,7 @@ async function askGemini(prompt, history, context = {}) {
     const systemInstructionText = buildSystemInstruction(context);
 
     // Combine history and current user prompt for 'contents'
+    // 'history' must only contain 'user' and 'model' roles.
     const conversation = [...history, { role: 'user', parts: [{ text: prompt }] }];
 
     const payload = {
@@ -225,7 +268,7 @@ async function perceiveUsersMood(userMessage) {
         const response = await axios.post(url, payload);
         if (response.data.candidates && response.data.candidates.length > 0) {
             const mood = response.data.candidates[0].content.parts[0].text.toLowerCase().trim();
-            const validMoods = ['happy', 'sad', 'stressed', 'excited', 'flirty', 'neutral', 'romantic', 'naughty', 'jealous', 'cute', 'lonely', 'horny']; // Added 'horny'
+            const validMoods = ['happy', 'sad', 'stressed', 'excited', 'flirty', 'neutral', 'romantic', 'naughty', 'jealous', 'cute', 'lonely', 'horny']; 
             return validMoods.includes(mood) ? mood : 'neutral';
         }
         return 'neutral';
@@ -252,7 +295,7 @@ async function updateModelMood(userId, userMessage, botResponse, context) {
             const [newMood, ...reasonParts] = result.split(' ');
             const moodReason = reasonParts.join(' ').replace(/[()]/g, '').trim();
 
-            const validMoods = ['happy', 'sad', 'stressed', 'excited', 'flirty', 'neutral', 'romantic', 'naughty', 'jealous', 'cute', 'lonely', 'horny']; // Added 'horny'
+            const validMoods = ['happy', 'sad', 'stressed', 'excited', 'flirty', 'neutral', 'romantic', 'naughty', 'jealous', 'cute', 'lonely', 'horny']; 
             const finalMood = validMoods.includes(newMood.toLowerCase()) ? newMood.toLowerCase() : 'neutral';
 
             await saveToDb(`users/${userId}/maya_state`, {
@@ -486,9 +529,9 @@ cron.schedule('0 0 * * *', async () => { // 12 AM (midnight) Dhaka time
         const aiMessage = await generateProactiveMessage(userId, thoughtTrigger);
         if (aiMessage) {
             const { activeModel } = await getOrCreateUserState(userId); // Fetch active model to get default mood
-            // Optionally, set model's mood to naughty before sending a good night message
+            // Optionally, set model's mood to horny before sending a good night message
             await saveToDb(`users/${userId}/maya_state/current_mood`, "horny"); 
-            await saveToDb(`users/${userId}/maya_state/mood_reason`, "It's night time, feeling bold and intimate.");
+            await saveToDb(`users/${userId}/maya_state/mood_reason`, `${activeModel.name} is feeling horny as it's late night.`);
             bot.sendMessage(userId, aiMessage);
             await saveMessageToRtdb(userId, 'model', aiMessage);
         }
@@ -524,7 +567,7 @@ cron.schedule('0 */2 * * *', async () => { // Every 2 hours during the day (e.g.
             const generalTriggers = [
                 `I just remembered a sweet memory we shared. ${activeModel.name} wants to tell Hasan how much I cherish it.`,
                 `I'm feeling a bit bored. ${activeModel.name} should text Hasan to see what he is up to.`,
-                `${activeModel.name} is just thinking about Hasan and want to send him a random sweet message.`,
+                `${activeModel.name} is just thinking about Hasan and wants to send him a random sweet message.`,
                 `${activeModel.name} wants to ask Hasan a random question about his day/feelings to show I care.`,
                 `${activeModel.name} is feeling a little flirty, I should send Hasan a teasing message.`,
             ];
