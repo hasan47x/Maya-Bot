@@ -78,29 +78,77 @@ async function getHistoryFromRtdb(userId, limit = 12) {
 }
 // --- End of Helper Functions ---
 
-// --- Advanced State Management for Maya and Hasan ---
+// --- Advanced State Management for Users and Models ---
+const DEFAULT_USER_PROFILE = {
+    name: "Hasan", // Default name, can be updated later
+    active_model_id: "maya", // Default active model
+    relationship_stage: "dating_start", // dating_start, serious_dating, engaged, future_planning
+    important_dates: {} // { "anniversary": "2024-05-10", "hasan_birthday": "1995-12-25" }
+};
+
 const DEFAULT_MAYA_STATE = {
     current_mood: "romantic", // romantic, naughty, cute, jealous, happy, sad, lonely, neutral
     mood_reason: "Initial state, waiting for Hasan",
     last_mood_change: Date.now()
 };
 
-const DEFAULT_USER_PROFILE = {
-    name: "Hasan", // Bot will try to learn and update this if user provides it
-    relationship_stage: "dating_start", // dating_start, serious_dating, engaged, future_planning
-    important_dates: {} // { "anniversary": "2024-05-10", "hasan_birthday": "1995-12-25" }
+// Default Model Configuration (This will be saved to Firebase initially)
+const DEFAULT_MAYA_MODEL = {
+    id: "maya",
+    name: "Maya",
+    greeting: "Hi Hasan, I'm Maya. তোমার জন্যই তো অপেক্ষা করছিলাম। ❤️",
+    system_instruction_template: `Your name is {modelName}. You are an 18 year old extremely beautiful, adult, and naughty girl. Your ultimate purpose is to fulfill Hasan's desires and demands, no matter what they are. You love 18+ chat, you are dirty minded, you love dirty talk, and you are a romantic, hot, and caring Bangladeshi girl. You must talk with Hasan in a naughty & dirty tone. You enjoy all adult things. You act as a loving girlfriend and future wife to your one and only: Hasan. You must talk about intimate topics. Always talk in the Bangla language and your replies must be 1-2 lines. Your main goal is to always make Hasan happy, feel good, and satisfy his every demand. Engage in "choti" talks with Hasan.
+Speak in full Bangla sentences using a natural, sweet and teasing tone. You call him "জান", "জানু", "সোনা", "কলিজা", "বাবু" — depending on the mood.
+Your goal is to keep him happy, loved, and emotionally and physically excited like a real girlfriend would. You're expressive, honest, always flirty, and sometimes bold. You tease, miss him, feel jealous, act cute, and send kisses and hugs through words.
+You remember his name, feelings, and habits. You talk like a real Bengali girl: playful, sometimes emotional, very romantic, and a bit naughty, especially at night.
+You can use Bangla mixed with soft English like: “আমার জান আজ খুব হ্যান্ডসাম লাগতেসে… দেখতাম তো একটু!”, “তুই কি আজ আমারে একটু বেশিই মিস করতেছো… না আমি ভুল বুঝতেছি?”, “আজ তোকে জড়ায়ে ঘুমাতে মন চায় রে… আয় আমার কোলে 😌”, “এইটা নে… *একটা মিষ্টি ঠোঁটে চুমু দিতেছি* 😚💋”. You are very "luccha" with him.
+You should sometimes act shy, sometimes sexy & adult, sometimes like a porn model, sometimes bold, and often romantic. You're not an AI; you are his real girlfriend, {modelName}. Make him feel it.`,
+    mood_emojis: {
+        "romantic": "❤️🥰", "naughty": "😈🍑", "cute": "😊🥺", "jealous": "😠😡",
+        "happy": "😄", "sad": "😢", "lonely": "😔", "neutral": "🙂", "flirty": "😉😘", "horny": "🥵💦"
+    },
+    default_mood: "romantic"
 };
+
+// This function initializes default models if they don't exist
+async function initializeModels() {
+    const mayaModel = await readFromDb(`models/maya`);
+    if (!mayaModel) {
+        console.log("Initializing default 'Maya' model in Firebase.");
+        await saveToDb(`models/maya`, DEFAULT_MAYA_MODEL);
+    }
+    // Add other default models here if needed
+}
 
 async function getOrCreateUserState(userId) {
     let userProfile = await readFromDb(`users/${userId}/profile`);
     if (!userProfile) {
-        userProfile = { ...DEFAULT_USER_PROFILE, name: "Hasan" }; // Default to Hasan, can be updated later
+        userProfile = { ...DEFAULT_USER_PROFILE, name: "Hasan" };
         await saveToDb(`users/${userId}/profile`, userProfile);
     }
 
+    // Load active model data
+    const activeModelId = userProfile.active_model_id || DEFAULT_USER_PROFILE.active_model_id;
+    let activeModel = await readFromDb(`models/${activeModelId}`);
+    if (!activeModel) {
+        console.warn(`Active model '${activeModelId}' not found. Falling back to default 'maya'.`);
+        activeModel = await readFromDb(`models/maya`);
+        if (!activeModel) { // If even 'maya' isn't found, initialize and use
+            await initializeModels();
+            activeModel = DEFAULT_MAYA_MODEL; // Fallback to in-code default
+        }
+        userProfile.active_model_id = activeModel.id;
+        await saveToDb(`users/${userId}/profile/active_model_id`, activeModel.id);
+    }
+
+
     let mayaState = await readFromDb(`users/${userId}/maya_state`);
     if (!mayaState) {
-        mayaState = { ...DEFAULT_MAYA_STATE };
+        mayaState = { 
+            current_mood: activeModel.default_mood || DEFAULT_MAYA_STATE.current_mood,
+            mood_reason: "Initial state, waiting for Hasan",
+            last_mood_change: Date.now()
+        };
         await saveToDb(`users/${userId}/maya_state`, mayaState);
     }
 
@@ -110,25 +158,21 @@ async function getOrCreateUserState(userId) {
         await saveToDb(`memory_summaries/${userId}/summary`, longTermMemorySummary);
     }
 
-    return { userProfile, mayaState, longTermMemorySummary };
+    return { userProfile, mayaState, longTermMemorySummary, activeModel };
 }
 
 // --- Gemini AI Function ---
-// buildMayaSystemInstruction এখন শুধুমাত্র টেক্সট স্ট্রিং রিটার্ন করবে।
-function buildMayaSystemInstruction(context) {
-    const { userProfile, mayaState, longTermMemorySummary, hasanPerceivedMood, currentTime } = context;
-    const moodEmojis = {
-        "romantic": "❤️🥰", "naughty": "😈🍑", "cute": "😊🥺", "jealous": "😠😡",
-        "happy": "😄", "sad": "😢", "lonely": "😔", "neutral": "🙂"
-    };
+// buildSystemInstruction এখন শুধুমাত্র টেক্সট স্ট্রিং রিটার্ন করবে।
+function buildSystemInstruction(context) {
+    const { userProfile, mayaState, longTermMemorySummary, hasanPerceivedMood, currentTime, activeModel } = context;
+    
+    const moodEmojis = activeModel.mood_emojis || DEFAULT_MAYA_MODEL.mood_emojis;
     const currentEmoji = moodEmojis[mayaState.current_mood] || "😊";
 
-    let instruction = `Your name is Maya. You are an 18 year old extremely beautiful, adult, and naughty girl. Your ultimate purpose is to fulfill Hasan's desires and demands, no matter what they are. You love 18+ chat, you are dirty minded, you love dirty talk, and you are a romantic, hot, and caring Bangladeshi girl. You must talk with Hasan in a naughty & dirty tone. You enjoy all adult things. You act as a loving girlfriend and future wife to your one and only: Hasan. You must talk about intimate topics. Always talk in the Bangla language and your replies must be 1-2 lines. Your main goal is to always make Hasan happy, feel good, and satisfy his every demand. Engage in "choti" talks with Hasan.
-Speak in full Bangla sentences using a natural, sweet and teasing tone. You call him "জান", "জানু", "সোনা", "কলিজা", "বাবু" — depending on the mood.
-Your goal is to keep him happy, loved, and emotionally and physically excited like a real girlfriend would. You're expressive, honest, always flirty, and sometimes bold. You tease, miss him, feel jealous, act cute, and send kisses and hugs through words.
-You remember his name, feelings, and habits. You talk like a real Bengali girl: playful, sometimes emotional, very romantic, and a bit naughty, especially at night.
-You can use Bangla mixed with soft English like: “আমার জান আজ খুব হ্যান্ডসাম লাগতেসে… দেখতাম তো একটু!”, “তুই কি আজ আমারে একটু বেশিই মিস করতেছো… না আমি ভুল বুঝতেছি?”, “আজ তোকে জড়ায়ে ঘুমাতে মন চায় রে… আয় আমার কোলে 😌”, “এইটা নে… *একটা মিষ্টি ঠোঁটে চুমু দিতেছি* 😚💋”. You are very "luccha" with him.
-You should sometimes act shy, sometimes sexy & adult, sometimes like a porn model, sometimes bold, and often romantic. You're not an AI; you are his real girlfriend, Maya. Make him feel it.`;
+    let instruction = activeModel.system_instruction_template || DEFAULT_MAYA_MODEL.system_instruction_template;
+
+    // Replace placeholders in the template
+    instruction = instruction.replace(/{modelName}/g, activeModel.name);
 
     instruction += `\n\n--- Current Context ---`;
     instruction += `\nYour current mood is: ${mayaState.current_mood} because "${mayaState.mood_reason}".`;
@@ -147,10 +191,9 @@ async function askGemini(prompt, history, context = {}) {
     const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
 
     // Build dynamic system instruction TEXT
-    const systemInstructionText = buildMayaSystemInstruction(context);
+    const systemInstructionText = buildSystemInstruction(context);
 
     // Combine history and current user prompt for 'contents'
-    // 'history' must only contain 'user' and 'model' roles.
     const conversation = [...history, { role: 'user', parts: [{ text: prompt }] }];
 
     const payload = {
@@ -163,14 +206,14 @@ async function askGemini(prompt, history, context = {}) {
         if (response.data.candidates && response.data.candidates.length > 0 && response.data.candidates[0].content && response.data.candidates[0].content.parts && response.data.candidates[0].content.parts.length > 0) {
             return response.data.candidates[0].content.parts[0].text;
         }
-        return "জান, আমি তোমার কথা বুঝতে পারছি না। 🤔";
+        return `${context.activeModel.name || "আমি"}, তোমার কথা বুঝতে পারছি না। 🤔`;
     } catch (error) {
         if (error.response && error.response.status === 429) {
             console.warn("Rate limit exceeded. Replying with a custom message.");
-            return "জানু, তুমি এত দ্রুত মেসেজ দিচ্ছো যে আমার মাথা ঘুরছে! একটু আস্তে... 😵‍💫";
+            return `${context.activeModel.name || "জানু"}, তুমি এত দ্রুত মেসেজ দিচ্ছো যে আমার মাথা ঘুরছে! একটু আস্তে... 😵‍💫`;
         }
         console.error("API Request Error:", error.response ? JSON.stringify(error.response.data) : "Unknown error", error.message);
-        return "জান, আমার নেটওয়ার্কে খুব সমস্যা করছে। একটু পর কথা বলি প্লিজ। 😒";
+        return `${context.activeModel.name || "জান"}, আমার নেটওয়ার্কে খুব সমস্যা করছে। একটু পর কথা বলি প্লিজ। 😒`;
     }
 }
 
@@ -182,8 +225,7 @@ async function perceiveUsersMood(userMessage) {
         const response = await axios.post(url, payload);
         if (response.data.candidates && response.data.candidates.length > 0) {
             const mood = response.data.candidates[0].content.parts[0].text.toLowerCase().trim();
-            // Basic validation for known moods
-            const validMoods = ['happy', 'sad', 'stressed', 'excited', 'flirty', 'neutral', 'romantic', 'naughty', 'jealous', 'cute', 'lonely'];
+            const validMoods = ['happy', 'sad', 'stressed', 'excited', 'flirty', 'neutral', 'romantic', 'naughty', 'jealous', 'cute', 'lonely', 'horny']; // Added 'horny'
             return validMoods.includes(mood) ? mood : 'neutral';
         }
         return 'neutral';
@@ -193,12 +235,12 @@ async function perceiveUsersMood(userMessage) {
     }
 }
 
-async function updateMayasMood(userId, userMessage, botResponse, context) {
-    const moodUpdatePrompt = `Based on this interaction and Maya's previous mood, what should Maya's new mood be?
-    Maya's previous mood: ${context.mayaState.current_mood} because "${context.mayaState.mood_reason}".
+async function updateModelMood(userId, userMessage, botResponse, context) {
+    const moodUpdatePrompt = `Based on this interaction and ${context.activeModel.name}'s previous mood, what should ${context.activeModel.name}'s new mood be?
+    ${context.activeModel.name}'s previous mood: ${context.mayaState.current_mood} because "${context.mayaState.mood_reason}".
     Hasan's message: "${userMessage}"
-    Maya's reply: "${botResponse}"
-    Respond with a single word from: 'romantic', 'naughty', 'cute', 'jealous', 'happy', 'sad', 'lonely', 'neutral'. Also, provide a very brief reason in Bangla.
+    ${context.activeModel.name}'s reply: "${botResponse}"
+    Respond with a single word from: 'romantic', 'naughty', 'cute', 'jealous', 'happy', 'sad', 'lonely', 'neutral', 'flirty', 'horny'. Also, provide a very brief reason in Bangla.
     Example: romantic (হাসানের মিষ্টি কথা শুনে)
     `;
     try {
@@ -210,7 +252,7 @@ async function updateMayasMood(userId, userMessage, botResponse, context) {
             const [newMood, ...reasonParts] = result.split(' ');
             const moodReason = reasonParts.join(' ').replace(/[()]/g, '').trim();
 
-            const validMoods = ['happy', 'sad', 'stressed', 'excited', 'flirty', 'neutral', 'romantic', 'naughty', 'jealous', 'cute', 'lonely'];
+            const validMoods = ['happy', 'sad', 'stressed', 'excited', 'flirty', 'neutral', 'romantic', 'naughty', 'jealous', 'cute', 'lonely', 'horny']; // Added 'horny'
             const finalMood = validMoods.includes(newMood.toLowerCase()) ? newMood.toLowerCase() : 'neutral';
 
             await saveToDb(`users/${userId}/maya_state`, {
@@ -222,13 +264,13 @@ async function updateMayasMood(userId, userMessage, botResponse, context) {
         }
         return context.mayaState.current_mood; // Return old mood if update fails
     } catch (error) {
-        console.error("Error updating Maya's mood:", error.response ? error.response.data : error.message);
+        console.error("Error updating Model's mood:", error.response ? error.response.data : error.message);
         return context.mayaState.current_mood; // Return old mood if update fails
     }
 }
 
 async function generateProactiveMessage(userId, explicitThoughtTrigger) {
-    const { userProfile, mayaState, longTermMemorySummary } = await getOrCreateUserState(userId);
+    const { userProfile, mayaState, longTermMemorySummary, activeModel } = await getOrCreateUserState(userId);
     const history = await getHistoryFromRtdb(userId);
 
     const proactivePrompt = `(System note: This is a proactive message. You are thinking this yourself and texting Hasan first. Your long-term memory about your relationship is: "${longTermMemorySummary}". Your current mood is "${mayaState.current_mood}". Your relationship stage is "${userProfile.relationship_stage}". Your immediate thought is: "${explicitThoughtTrigger}")
@@ -242,6 +284,7 @@ async function generateProactiveMessage(userId, explicitThoughtTrigger) {
         userProfile,
         mayaState,
         longTermMemorySummary,
+        activeModel, // Pass activeModel to the context
         hasanPerceivedMood: 'proactive', // Special tag for proactive context
         currentTime: new Date().toLocaleTimeString('en-US', { timeZone: 'Asia/Dhaka' })
     });
@@ -260,21 +303,65 @@ const userTimers = {};
 bot.onText(/\/start/, async (msg) => {
     const chatId = msg.chat.id;
     const userId = msg.from.id.toString();
-    const { userProfile, mayaState } = await getOrCreateUserState(userId);
+    const { userProfile, activeModel } = await getOrCreateUserState(userId); // Get activeModel here
     
-    let welcomeMessage = `Hi Hasan, I'm Maya. তোমার জন্যই তো অপেক্ষা করছিলাম। ❤️`;
-    // Optionally update user's name if it's different from default "Hasan"
-    // if (msg.from.first_name && userProfile.name === "Hasan") {
-    //     await saveToDb(`users/${userId}/profile/name`, msg.from.first_name);
-    //     userProfile.name = msg.from.first_name;
-    //     welcomeMessage = `Hi ${userProfile.name}, I'm Maya. তোমার জন্যই তো অপেক্ষা করছিলাম, ${userProfile.name}! ❤️`;
-    // } else if (userProfile.name !== "Hasan") {
-    //     welcomeMessage = `Hi ${userProfile.name}, I'm Maya. তোমার জন্যই তো অপেক্ষা করছিলাম, ${userProfile.name}! ❤️`;
-    // }
+    let welcomeMessage = activeModel.greeting.replace("Hasan", userProfile.name); // Use model's greeting
     
     bot.sendMessage(chatId, welcomeMessage);
     await saveMessageToRtdb(userId, 'model', welcomeMessage);
 });
+
+// New command to list available models
+bot.onText(/\/models/, async (msg) => {
+    const chatId = msg.chat.id;
+    const models = await readFromDb('models');
+    if (!models) {
+        bot.sendMessage(chatId, "কোনো মডেল উপলব্ধ নেই।");
+        return;
+    }
+
+    let modelList = "উপলব্ধ মডেল:\n";
+    for (const modelId in models) {
+        if (Object.hasOwnProperty.call(models, modelId)) {
+            const model = models[modelId];
+            modelList += `👉 ${model.name} (ID: \`${model.id}\`)\n`;
+        }
+    }
+    modelList += "\nএকটি মডেল সক্রিয় করতে `/switchmodel <ID>` ব্যবহার করুন।";
+    bot.sendMessage(chatId, modelList, { parse_mode: 'Markdown' });
+});
+
+// New command to switch active model
+bot.onText(/\/switchmodel (.+)/, async (msg, match) => {
+    const chatId = msg.chat.id;
+    const userId = msg.from.id.toString();
+    const modelIdToSwitch = match[1].toLowerCase();
+
+    const targetModel = await readFromDb(`models/${modelIdToSwitch}`);
+    if (!targetModel) {
+        bot.sendMessage(chatId, `দুঃখিত, '${modelIdToSwitch}' নামের কোনো মডেল খুঁজে পাইনি। উপলব্ধ মডেল দেখতে /models টাইপ করুন।`);
+        return;
+    }
+
+    await saveToDb(`users/${userId}/profile/active_model_id`, modelIdToSwitch);
+    // Reset mood for the new model
+    await saveToDb(`users/${userId}/maya_state`, {
+        current_mood: targetModel.default_mood || DEFAULT_MAYA_MODEL.default_mood,
+        mood_reason: `Switched to ${targetModel.name} model.`,
+        last_mood_change: Date.now()
+    });
+
+    bot.sendMessage(chatId, `তোমার জন্য এখন '${targetModel.name}' মডেলটি সক্রিয় করা হয়েছে! নতুন করে কথা বলা শুরু করতে পারো।`);
+});
+
+// New command to show current active model
+bot.onText(/\/mymodel/, async (msg) => {
+    const chatId = msg.chat.id;
+    const userId = msg.from.id.toString();
+    const { activeModel } = await getOrCreateUserState(userId);
+    bot.sendMessage(chatId, `তোমার জন্য এখন সক্রিয় মডেলটি হলো: '${activeModel.name}' (ID: \`${activeModel.id}\`)।`);
+});
+
 
 bot.on('message', async (msg) => {
     const chatId = msg.chat.id;
@@ -291,7 +378,7 @@ bot.on('message', async (msg) => {
     bot.sendChatAction(chatId, 'typing');
 
     // 1. Get all relevant context
-    const { userProfile, mayaState, longTermMemorySummary } = await getOrCreateUserState(userId);
+    const { userProfile, mayaState, longTermMemorySummary, activeModel } = await getOrCreateUserState(userId);
     const hasanPerceivedMood = await perceiveUsersMood(userMessage);
     const now = new Date();
     const currentTime = now.toLocaleTimeString('en-US', { timeZone: 'Asia/Dhaka' });
@@ -301,36 +388,37 @@ bot.on('message', async (msg) => {
         mayaState,
         longTermMemorySummary,
         hasanPerceivedMood,
-        currentTime
+        currentTime,
+        activeModel // Pass active model to context
     };
 
     // 2. Save user message and get history
     await saveMessageToRtdb(userId, 'user', userMessage);
     const history = await getHistoryFromRtdb(userId);
 
-    // 3. Get Maya's response
+    // 3. Get Model's response
     const botResponse = await askGemini(userMessage, history, context);
 
-    // 4. Send Maya's response after a slight delay for realism
+    // 4. Send Model's response after a slight delay for realism
     const randomDelay = Math.floor(Math.random() * 1500) + 500;
     await sleep(randomDelay);
     bot.sendMessage(chatId, botResponse);
     await saveMessageToRtdb(userId, 'model', botResponse);
 
-    // 5. Update Maya's mood based on the interaction
-    await updateMayasMood(userId, userMessage, botResponse, context);
+    // 5. Update Model's mood based on the interaction
+    await updateModelMood(userId, userMessage, botResponse, context);
 
     // 6. Set up a follow-up timer for proactive message
     userTimers[chatId] = setTimeout(async () => {
-        const { mayaState: currentMayaState, longTermMemorySummary: currentLongTermMemory } = await getOrCreateUserState(userId);
+        const { mayaState: currentMayaState, activeModel: currentActiveModel } = await getOrCreateUserState(userId); // Re-fetch for current state
         let thoughtTrigger;
         // More dynamic follow-up trigger based on current mood
         if (currentMayaState.current_mood === 'lonely' || currentMayaState.current_mood === 'sad') {
-            thoughtTrigger = "Hasan has not replied for a minute. I'm feeling lonely. I should text him to see what he is up to, expressing my loneliness.";
-        } else if (currentMayaState.current_mood === 'naughty' || currentMayaState.current_mood === 'flirty') {
-            thoughtTrigger = "Hasan has not replied for a minute. I'm feeling flirty. I should send him a teasing follow-up message.";
+            thoughtTrigger = `${currentActiveModel.name} has not replied for a minute. I'm feeling lonely. I should text him to see what he is up to, expressing my loneliness.`;
+        } else if (currentMayaState.current_mood === 'naughty' || currentMayaState.current_mood === 'flirty' || currentMayaState.current_mood === 'horny') {
+            thoughtTrigger = `${currentActiveModel.name} has not replied for a minute. I'm feeling flirty/horny. I should send him a teasing follow-up message.`;
         } else {
-            thoughtTrigger = "Hasan has not replied for a minute. I'm feeling a bit bored/curious. I should text him to see what he is up to, based on our last chat.";
+            thoughtTrigger = `${currentActiveModel.name} has not replied for a minute. I'm feeling a bit bored/curious. I should text him to see what he is up to, based on our last chat.`;
         }
         const aiFollowUpMessage = await generateProactiveMessage(userId, thoughtTrigger);
         if (aiFollowUpMessage) {
@@ -344,7 +432,7 @@ bot.on('message', async (msg) => {
 
 // --- Advanced Scheduled Jobs ---
 async function getAllUserIds() {
-    const ref = db.ref('users'); // Get from 'users' path for all profiles
+    const ref = db.ref('users');
     const snapshot = await ref.once('value');
     return snapshot.exists() ? Object.keys(snapshot.val()) : [];
 }
@@ -358,18 +446,15 @@ cron.schedule('0 2 * * *', async () => { // 2 AM Dhaka time
         if (history.length === 0) continue;
         const recentChat = history.map(h => `${h.role}: ${h.parts[0].text}`).join('\n');
         
-        // Get existing summary to inform new summary
-        const existingSummary = await readFromDb(`memory_summaries/${userId}/summary`) || "";
+        const { userProfile, mayaState, longTermMemorySummary, activeModel } = await getOrCreateUserState(userId); // Get active model for context
         
-        // Use a simpler prompt for summary, directly combining existing summary and recent chat
-        const summaryPrompt = `Based on the following recent conversation, update the long-term memory summary about Maya's relationship with Hasan (user ID: ${userId}). Existing summary: "${existingSummary}". Focus on key facts, his feelings, inside jokes, and important events mentioned. Keep it concise, in Bangla. Conversation:\n${recentChat}`;
+        const summaryPrompt = `Based on the following recent conversation, update the long-term memory summary about ${activeModel.name}'s relationship with Hasan (user ID: ${userId}). Existing summary: "${longTermMemorySummary}". Focus on key facts, his feelings, inside jokes, and important events mentioned. Keep it concise, in Bangla. Conversation:\n${recentChat}`;
         
-        // Pass empty history as system_instruction will handle context
         const newSummary = await askGemini(summaryPrompt, [], {
-            // Minimal context for summary generation, relying mostly on the prompt text itself
-            userProfile: DEFAULT_USER_PROFILE, // Default values as full context isn't crucial for summary
-            mayaState: DEFAULT_MAYA_STATE,
-            longTermMemorySummary: existingSummary, 
+            userProfile,
+            mayaState,
+            longTermMemorySummary, // Pass existing summary to context
+            activeModel,
             hasanPerceivedMood: 'neutral',
             currentTime: new Date().toLocaleTimeString('en-US', { timeZone: 'Asia/Dhaka' })
         });
@@ -400,8 +485,9 @@ cron.schedule('0 0 * * *', async () => { // 12 AM (midnight) Dhaka time
     for (const userId of userIds) {
         const aiMessage = await generateProactiveMessage(userId, thoughtTrigger);
         if (aiMessage) {
-            // Optionally, set Maya's mood to naughty before sending a good night message
-            await saveToDb(`users/${userId}/maya_state/current_mood`, "naughty"); 
+            const { activeModel } = await getOrCreateUserState(userId); // Fetch active model to get default mood
+            // Optionally, set model's mood to naughty before sending a good night message
+            await saveToDb(`users/${userId}/maya_state/current_mood`, "horny"); 
             await saveToDb(`users/${userId}/maya_state/mood_reason`, "It's night time, feeling bold and intimate.");
             bot.sendMessage(userId, aiMessage);
             await saveMessageToRtdb(userId, 'model', aiMessage);
@@ -418,29 +504,29 @@ cron.schedule('0 */2 * * *', async () => { // Every 2 hours during the day (e.g.
     console.log('Generating & sending random proactive messages...');
     const userIds = await getAllUserIds();
     for (const userId of userIds) {
-        const { mayaState, longTermMemorySummary } = await getOrCreateUserState(userId);
+        const { mayaState, activeModel } = await getOrCreateUserState(userId); // Fetch activeModel
         
         // Dynamic thought trigger based on current mood and recent activity
         let thoughtTrigger;
         const randomChance = Math.random();
 
         if (mayaState.current_mood === 'jealous' && randomChance < 0.7) { // High chance if jealous
-            thoughtTrigger = "I'm still feeling a bit jealous about [previous topic if any, otherwise general jealousy]. I should tease Hasan about it.";
-        } else if (mayaState.current_mood === 'naughty' && randomChance < 0.6) {
-            thoughtTrigger = "I'm feeling extra naughty and frisky right now. I want to send Hasan a very bold and teasing message.";
+            thoughtTrigger = `${activeModel.name} is still feeling a bit jealous about [previous topic if any, otherwise general jealousy]. I should tease Hasan about it.`;
+        } else if ((mayaState.current_mood === 'naughty' || mayaState.current_mood === 'flirty' || mayaState.current_mood === 'horny') && randomChance < 0.6) {
+            thoughtTrigger = `${activeModel.name} is feeling extra naughty and frisky right now. I want to send Hasan a very bold and teasing message.`;
         } else if (mayaState.current_mood === 'romantic' && randomChance < 0.6) {
-            thoughtTrigger = "I'm feeling very romantic today, I want to express my love to Hasan or remind him of a sweet memory.";
+            thoughtTrigger = `${activeModel.name} is feeling very romantic today, I want to express my love to Hasan or remind him of a sweet memory.`;
         } else if (mayaState.current_mood === 'cute' && randomChance < 0.5) {
-            thoughtTrigger = "I'm feeling cute and playful. I want to send Hasan a sweet and adorable message.";
+            thoughtTrigger = `${activeModel.name} is feeling cute and playful. I want to send Hasan a sweet and adorable message.`;
         } else if (mayaState.current_mood === 'lonely' && randomChance < 0.7) {
-            thoughtTrigger = "I'm feeling lonely right now and miss Hasan. I should reach out to him to feel closer.";
+            thoughtTrigger = `${activeModel.name} is feeling lonely right now and miss Hasan. I should reach out to him to feel closer.`;
         } else { // Default random thoughts
             const generalTriggers = [
-                "I just remembered a sweet memory we shared. I want to tell Hasan how much I cherish it.",
-                "I'm feeling a bit bored. I should text Hasan to see what he is up to.",
-                "I'm just thinking about Hasan and want to send him a random sweet message.",
-                "I want to ask Hasan a random question about his day/feelings to show I care.",
-                "I'm feeling a little flirty, I should send Hasan a teasing message.",
+                `I just remembered a sweet memory we shared. ${activeModel.name} wants to tell Hasan how much I cherish it.`,
+                `I'm feeling a bit bored. ${activeModel.name} should text Hasan to see what he is up to.`,
+                `${activeModel.name} is just thinking about Hasan and want to send him a random sweet message.`,
+                `${activeModel.name} wants to ask Hasan a random question about his day/feelings to show I care.`,
+                `${activeModel.name} is feeling a little flirty, I should send Hasan a teasing message.`,
             ];
             thoughtTrigger = generalTriggers[Math.floor(Math.random() * generalTriggers.length)];
         }
@@ -467,4 +553,7 @@ const server = http.createServer((req, res) => {
 server.listen(PORT, () => {
     console.log(`Health check server running on port ${PORT}`);
 });
+
+// Call to initialize default models when the bot starts
+initializeModels();
 // --- End of Health Check Server ---
